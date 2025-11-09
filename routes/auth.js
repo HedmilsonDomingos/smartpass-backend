@@ -5,13 +5,27 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 require('dotenv').config();
 
-// Register (for demo)
+// REGISTER
 router.post('/register', async (req, res) => {
   const { username, password } = req.body;
-  const hashed = await bcrypt.hash(password, 10);
-  const user = new User({ username, password: hashed });
-  await user.save();
-  res.json({ message: 'User created' });
+
+  try {
+    let user = await User.findOne({ username });
+    if (user) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    user = new User({ username, password: hashedPassword });
+    await user.save();
+
+    res.json({ message: "User created" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 // LOGIN
