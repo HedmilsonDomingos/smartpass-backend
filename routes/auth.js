@@ -1,3 +1,4 @@
+const auth = require('../middleware/auth');  // ← ADD THIS LINE
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
