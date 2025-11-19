@@ -4,13 +4,14 @@ const employeeSchema = new mongoose.Schema({
   name: String,
   email: String,
   mobile: String,
-  position: String,
+  cargo: String,
   department: String,
-  category: String,
   company: String,
+  officeLocation: String,
   status: { type: String, default: 'Active' },
   employeeId: String,
   qrCode: String,
+  idCardExpirationDate: Date,
   photo: { type: String, default: 'https://via.placeholder.com/150' }
 }, { timestamps: true });
 

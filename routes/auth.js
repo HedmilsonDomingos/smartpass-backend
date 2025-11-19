@@ -5,43 +5,17 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// REGISTER
-router.post('/register', async (req, res) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    return res.status(400).json({ message: "Username and password required" });
-  }
-
-  try {
-    let user = await User.findOne({ username });
-    if (user) {
-      return res.status(400).json({ message: "User already exists" });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    user = new User({ username, password: hashedPassword });
-    await user.save();
-
-    res.json({ message: "User created successfully" });
-  } catch (err) {
-    console.error("Register error:", err.message);
-    res.status(500).json({ message: "Server error - check MongoDB URI" });
-  }
-});
 
 // LOGIN
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { email, password } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ message: "Username and password required" });
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password required" });
   }
 
   try {
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -63,4 +37,19 @@ router.post('/login', async (req, res) => {
   }
 }); // FORCE UPDATE
 
-module.exports = router;
+// GET logged-in user profile
+router.get('/me', auth, async (req, res) => {
+  try {
+    // req.user is set by the auth middleware (backend/middleware/auth.js)
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error('GET /api/auth/me error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+module.exports = router; // FORCE UPDATE

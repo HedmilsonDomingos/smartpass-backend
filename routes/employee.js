@@ -7,10 +7,10 @@ require('dotenv').config();
 
 // Middleware
 const auth = (req, res, next) => {
-  const token = req.header('Authorization');
+  const token = req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No token' });
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallbacksecret123');
     req.userId = decoded.id;
     next();
   } catch (err) {
@@ -20,8 +20,51 @@ const auth = (req, res, next) => {
 
 // GET all employees
 router.get('/', auth, async (req, res) => {
-  const employees = await Employee.find();
-  res.json(employees);
+  const { company, status, search, page = 1, limit = 10 } = req.query;
+  const query = {};
+  const pageNumber = parseInt(page);
+  const limitNumber = parseInt(limit);
+
+  if (company) {
+    query.company = company;
+  }
+
+  if (status) {
+    // Status can be 'Active' or 'Inactive'. If status is provided, use it directly.
+    // If the user wants ALL, they should omit the status query parameter.
+    query.status = status;
+  }
+
+  if (search) {
+    const searchRegex = new RegExp(search, 'i');
+    // Assuming the frontend search input is used for department or company search
+    query.$or = [
+      { department: searchRegex },
+      { company: searchRegex },
+      // Also include search by name or ID if the frontend search input is used for that too
+      { name: searchRegex },
+      { employeeId: searchRegex },
+    ];
+  }
+
+  try {
+    const totalEmployees = await Employee.countDocuments(query);
+    const totalPages = Math.ceil(totalEmployees / limitNumber);
+
+    const employees = await Employee.find(query)
+      .skip((pageNumber - 1) * limitNumber)
+      .limit(limitNumber);
+
+    res.json({
+      employees,
+      totalPages,
+      currentPage: pageNumber,
+      totalEmployees,
+    });
+  } catch (error) {
+    console.error('Error fetching employees:', error);
+    res.status(500).json({ error: 'Failed to fetch employees' });
+  }
 });
 
 // GET one employee
@@ -52,15 +95,31 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 // PUBLIC: Get employee by ID (no auth)
-router.get('/public-employee/:id', async (req, res) => {
-  const emp = await Employee.findById(req.params.id);
+router.get('/public/:slug', async (req, res) => {
+  const slug = req.params.slug;
+  let emp = null;
+
+  // 1. Try finding by MongoDB _id (if it looks like one)
+  if (slug.match(/^[0-9a-fA-F]{24}$/)) {
+    emp = await Employee.findById(slug);
+  }
+
+  // 2. If not found by _id, try finding by custom employeeId
+  if (!emp) {
+    emp = await Employee.findOne({ employeeId: slug });
+  }
+
   if (!emp) return res.status(404).json({ error: 'Not found' });
+
+  // Return only public fields
   res.json({
     name: emp.name,
-    position: emp.position,
+    cargo: emp.cargo,
     department: emp.department,
     status: emp.status,
-    photo: emp.photo
+    photo: emp.photo,
+    company: emp.company,
+    idCardExpiration: emp.idCardExpirationDate, // Use the correct field name from model
   });
 });
 
